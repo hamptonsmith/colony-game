@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8"/>
+    </head>
+    <body>
+        <div style="float:left;" id="colonyInfo">
+            {}
+        </div>
+        <div style="float:right;">
+            <input type="text" size="20" onkeydown="commandKeyDown(event)" />
+            <div id="messageBox">
+                &nbsp;
+            </div>
+        </div>
+    
+        <script>
+            const ws = new WebSocket('ws://localhost:8080');
+
+            ws.addEventListener('message', event => {
+                const msg = JSON.parse(event.data);
+                
+                if (msg.type === 'update') {
+                    document
+                            .getElementById('colonyInfo')
+                            .innerHTML = "<pre>"
+                                    + JSON.stringify(msg.content, null, 4)
+                                    + "</pre>";
+                }
+                else if (msg.type === 'info') {
+                    document
+                            .getElementById('messageBox')
+                            .innerHTML = `<span>${msg.content}</span>`;
+                }
+                else if (msg.type === 'error') {
+                    document
+                            .getElementById('messageBox')
+                            .innerHTML = `<span style="color:red;">`
+                                    + `${msg.content}</span>`;
+                }
+            });
+            
+            function commandKeyDown(event) {
+                if (event.keyCode === 13) {
+                    ws.send(event.target.value);
+                    
+                    event.target.value = '';
+                }
+            }
+        </script>
+    </body>
+</html>
