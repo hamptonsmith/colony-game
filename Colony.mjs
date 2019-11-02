@@ -1,128 +1,66 @@
-import attrs from './ColonyAttributeDefinitions.mjs';
+import buildAttributeTable from './AttributeTable.mjs';
+import COLONY_ATTRIBUTES from './ColonyAttributeDefinitions.mjs';
+import COLONY_PROJECTS from './ColonyProjects.mjs';
 import rng from './Rng.mjs';
 
-export default class Colony {
-    constructor() {
+export default async function() {
+    const at = await buildAttributeTable(COLONY_ATTRIBUTES);
+    return new Colony(at);
+}
+
+export class Colony {
+    constructor(at) {
         this.name = 'A Super Cool Colony';
-        this.popK = 2.2;
-        this.outputs = {
-            production: 0,
-            culture: 0,
-            innovation: 0
-        };
-        this.aspects = [];
-        
-        this.groundAttributeValues = {};
-        Object.keys(attrs).forEach(attr => {
-            this.groundAttributeValues[attr] = attrs[attr].initialValue();
-        });
+        this.attributes = at;
+        this.progress = {};
+        this.buildings = [];
     }
     
-    step() {
-        const oldAttributes = synthesizeAttributeValues();
-    
-        const currentGrowthRate = this.idealGrowthRate
-                * ((this.capacityK - this.popK) / this.capacityK);
-    
-        this.popK += (this.popK * currentGrowthRate);
-        
-        const newAttributes = synthesizeAttributeValues();
-        
-        const outputAllocations = newAttributes.size - oldAttributes.size;
-        
-        while (outputAllocations < 0) {
-            const output = rng.pick(Object.keys(this.outputs));
-            this.outputs[output]--;
-            
-            outputAllocations++;
-        }
-        
-        while (outputAllocations > 1) {
-            const targetProduction
-            
-            outputAllocations--;
-        }
-    }
-    
-    desc() {
-        return {
-            name: this.name,
-            popK: this.popK,
-            derived: this.derivedAttributes(),
-            outputs: this.outputs
-        };
-    }
-    
-    derivedAttributes() {
-        return {
-            size: Math.floor(Math.log2(this.popK / 2))
-        };
-    }
-    
-    synthesizeAttributes() {
-        const result = synthesizedAttributeTableBeforeEffects(this);
-        this.aspects.forEach(aspect => aspect.applyTo(result));
-        
-        Object.keys(attrs).forEach(name => {
-            const def = attrs[name];
-            
-            let value;
-            switch (def.type) {
-                case 'bfb': {
-                    const effects = result[name].accumulatedEffects;
-                
-                    value = effects.base * effects.factor + effects.bonus;
-                    break;
-                }
-                default: {
-                    throw new Error('Unknown attribute type: ' + def.type);
-                }
+    async step() {
+        const currentValues = await this.attributes.currentValues();
+        if (this.building) {
+            if (this.progress[this.building] === undefined) {
+                this.progress[this.building] = 0;
             }
             
-            result[name].value = value;
-        });
+            this.progress[this.building] += currentValues.production;
+            
+            if (this.progress[this.building] >=
+                    COLONY_PROJECTS[this.building].cost) {
+                this.buildings.push(this.building);
+                this.building = undefined;
+            }
+        }
+    
+        await this.attributes.step();
+    }
+    
+    async desc() {
+        const result = {
+            name: this.name,
+            attributes: await this.attributes.currentValues(),
+            building: this.building,
+            couldBuild: Object.keys(COLONY_PROJECTS)
+        };
+        
+        if (this.building) {
+            result.progress = {
+                accumulated: this.progress[this.building],
+                required: COLONY_PROJECTS[this.building].cost
+            };
+        }
         
         return result;
     }
     
-    synthesizeAttributeValues() {
-        const synthesizedAttributesTable = this.synthesizeAttributes();
-        
-        const result = {};
-        Object.keys(attrs).forEach(name => {
-            result[name] = synthesizedAttributesTable[name].value;
-        });
-    }
-}
-
-function synthesizedAttributeTableBeforeEffects(c) {
-    const result = {};
-    attrs.forEach(name => {
-        const def = attrs[name];
-        
-        let accumulatedEffects;
-        switch (def.type) {
-            case 'bfb': {
-                accumulatedEffects = {
-                    base: c.groundAttributeValues[name],
-                    factor: 1,
-                    bonus: 0
-                };
-                
-                break;
-            }
-            default: {
-                throw new Error('Unknown attribute type: ' + def.type);
-            }
+    setBuild(key) {
+        if (!COLONY_PROJECTS[key]) {
+            throw new Error('Unknown project key.');
         }
         
-        result[name] = {
-            accumulatedEffects: accumulatedEffects,
-            relevantEffects: []
-        };
-    });
+        this.building = key;
+    }
 }
-
 
 // Colonies produce these resources:
 //   - Production

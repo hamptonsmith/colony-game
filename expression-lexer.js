@@ -3,7 +3,14 @@ const moo = require('moo');
 module.exports = moo.compile({
     ws: { match: /[ \t\n]+/, lineBreaks: true },
     num: /(?:\d*\.\d+|\d+)(?:k|m|b)?/,
-    word: /%?[A-Za-z]\w*/,
+    word: { match: /%?[A-Za-z]\w*/, type: moo.keywords({
+        keyword: ['true', 'false', 'or', 'and', 'not', 'if', 'otherwise']
+    })},
+    lte: '<=',
+    gte: '>=',
+    lt: '<',
+    gt: '>',
+    eq: '=',
     caret: '^',
     star: '*',
     slash: '/',

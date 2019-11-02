@@ -69,6 +69,27 @@ async function bindTemplate(expressionAst, environment) {
                     await bindTemplate(expressionAst.right, environment);
             break;
         }
+        case 'not': {
+            expressionAst.value =
+                    await bindTemplate(expressionAst.value, environment);
+            break;
+        }
+        case 'if': {
+            for (let i = 0; i < expressionAst.conditionalBranches.length; i++) {
+                const branch = expressionAst.conditionalBranches[i];
+                
+                branch.condition =
+                        await bindTemplate(branch.condition, environment);
+                branch.value = await bindTemplate(branch.value, environment);
+            }
+            expressionAst.otherwise =
+                    await bindTemplate(expressionAst.otherwise, environment);
+            break;
+        }
+        case 'literal': {
+            // No need to do anything.
+            break;
+        }
         case 'template': {
             result = await evaluateExpression(expressionAst.value, environment);
             
@@ -86,7 +107,8 @@ async function bindTemplate(expressionAst, environment) {
             break;
         }
         default: {
-            throw new Error('Unknown AST type: ' + expressionAst.type);
+            throw new Error('Unknown AST type: ' + expressionAst.type + ' (' +
+                    JSON.stringify(expressionAst) + ')');
         }
     }
     
@@ -143,11 +165,31 @@ async function evaluateExpression(expressionAst, environment) {
                         environment));
             }
             
-            result = await fn(...args);
+            const thisObj = {
+                async evaluate(exp) {
+                    return await evaluateExpression(parse(exp), environment);
+                }
+            };
+            
+            result = await fn.apply(thisObj, args);
+            
             break;
         }
         case 'binaryOp': {
             result = await evaluateBinop(expressionAst, environment);
+            break;
+        }
+        case 'not': {
+            result = await evaluateExpression(expressionAst.value, environment);
+            result = !result;
+            break;
+        }
+        case 'if': {
+            result = await evaluateIf(expressionAst, environment);
+            break;
+        }
+        case 'literal': {
+            result = expressionAst.value;
             break;
         }
         case 'template': {
@@ -156,6 +198,27 @@ async function evaluateExpression(expressionAst, environment) {
         default: {
             throw new Error('Unknown AST type: ' + expressionAst.type);
         }
+    }
+    
+    return result;
+}
+
+async function evaluateIf(ifAst, environment) {
+    let result;
+    
+    let i = 0;
+    while (result === undefined && i < ifAst.conditionalBranches.length) {
+        const branch = ifAst.conditionalBranches[i];
+
+        if (await evaluateExpression(branch.condition, environment)) {
+            result = await evaluateExpression(branch.value, environment);
+        }
+        
+        i++;
+    }
+    
+    if (result === undefined) {
+        result = await evaluateExpression(ifAst.otherwise, environment);
     }
     
     return result;
@@ -184,7 +247,35 @@ async function evaluateBinop(expressionAst, environment) {
             break;
         }
         case '^': {
-            result = left ^ right;
+            result = Math.pow(left, right);
+            break;
+        }
+        case '<=': {
+            result = left <= right;
+            break;
+        }
+        case '<': {
+            result = left < right;
+            break;
+        }
+        case '>': {
+            result = left > right;
+            break;
+        }
+        case '>=': {
+            result = left >= right;
+            break;
+        }
+        case '=': {
+            result = left === right;
+            break;
+        }
+        case 'and': {
+            result = left && right;
+            break;
+        }
+        case 'or': {
+            result = left || right;
             break;
         }
         default: {

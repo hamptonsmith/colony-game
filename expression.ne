@@ -19,13 +19,43 @@
 
 @lexer lexer
 
-expression -> add {% ([exp]) => exp %}
+expression -> (or | if) {% ([[exp]]) => exp %}
+
+if -> (or "if" or ","):+ or "otherwise" {% ([ifs,otherwise]) => ({
+    type: 'if',
+    conditionalBranches: ifs.map(([value,,condition]) => ({
+        condition: condition,
+        value: value
+    })),
+    otherwise: otherwise
+})%}
 
 binop[NEXT, OP] -> $NEXT ($OP $NEXT):* {% parse => binaryOp(parse) %}
 
-add   -> binop[mult, ("+" | "-")] {% ([add]) => add %}
-mult  -> binop[power, ("*" | "/")] {% ([mult]) => mult %}
-power -> binop[chained, "^"] {% ([power]) => power %}
+or      -> binop[and, ("or")] {% ([or]) => or %}
+and     -> binop[not, ("and")] {% ([and]) => and %}
+
+not -> ("not"):? compare {% ([not, compare]) => {
+    let result = compare;
+    
+    if (not) {
+        result = {
+            type: 'not',
+            value: result,
+            offset: not.offset,
+            line: not.line,
+            col: not.col
+        };
+    }
+    
+    return result;
+}%}
+
+compare -> binop[add, ("=" | "<=" | "<" | ">" | ">=")]
+           {% ([compare]) => compare %}
+add     -> binop[mult, ("+" | "-")] {% ([add]) => add %}
+mult    -> binop[power, ("*" | "/")] {% ([mult]) => mult %}
+power   -> binop[chained, ("^")] {% ([power]) => power %}
 
 chained -> bounded arguments:* {% ([bounded, callChain]) => {
     let result = bounded;
@@ -60,6 +90,20 @@ argList -> expression ("," expression):* {% ([first, rest]) => {
 bounded ->
     symbol {% ([symbol]) => symbol %}
   | number {% ([number]) => number %}
+  | "true" {% (t) => ({
+        type: 'literal',
+        value: true,
+        offset: t.offset,
+        line: t.line,
+        col: t.col
+    })%}
+  | "false" {% (t) => ({
+        type: 'literal',
+        value: false,
+        offset: t.offset,
+        line: t.line,
+        col: t.col
+    })%}
   | "(" expression ")" {% ([open, expression]) => ({
         type: 'parenthetical',
         value: expression,

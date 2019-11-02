@@ -4,7 +4,11 @@ import types from './AttributeTypes.mjs';
 
 export default async function(defs) {
     const groundValues = await buildGroundValues(defs);
-    return new AttributeTable(defs, groundValues,
+    
+    const allDefs = clone(defs);
+    delete allDefs.$helpers;
+    
+    return new AttributeTable(allDefs, groundValues,
             buildHelperFunctions(defs.$helpers));
 }
 
@@ -62,7 +66,7 @@ class AttributeTable {
         if (helperFunctions === undefined) {
             throw new Error();
         }
-    
+        
         this.attrDefs = defs;
         this.groundValues = groundValues;
         this.helperFunctions = helperFunctions;
@@ -71,9 +75,13 @@ class AttributeTable {
     
     async step() {
         const currentValues = await this.currentValues();
+        Object.keys(this.helperFunctions).forEach(key => {
+            currentValues[key] = this.helperFunctions[key];
+        });
+        
         const newGroundValues = {};
         
-        const attrNames = Object.keys(currentValues);
+        const attrNames = Object.keys(this.attrDefs);
         for (let i = 0; i < attrNames.length; i++) {
             const attrName = attrNames[i];
             const currentGroundValue = this.groundValues[attrName];
