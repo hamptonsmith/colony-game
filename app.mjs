@@ -35,12 +35,18 @@ async function main() {
     });
 
     setInterval(async () => {
-        const msg = JSON.stringify({
-            type: 'update',
-            content: await c.desc()
-        });
+        try {
+            const msg = JSON.stringify({
+                type: 'update',
+                content: await c.desc()
+            });
 
-        observers.forEach(o => o.send(msg));
+            observers.forEach(o => o.send(msg));
+        }
+        catch (e) {
+            console.log(e);
+            process.exit(1);
+        }
     }, 2000);
 
     setInterval(() => {
@@ -54,9 +60,13 @@ async function main() {
         const parts = cmd.split(' ');
         switch (parts[0]) {
             case 'build': {
-                c.setBuild(parts[1]);
+                await c.setBuild(parts[1]);
                 return `Building ${parts[1]}.`;
                 break;
+            }
+            case 'instabuild': {
+                await c.instaBuild(parts[1]);
+                return `Insta-built ${parts[1]}.`;
             }
             default: {
                 throw new Error('Unknown command: ' + parts[0]);

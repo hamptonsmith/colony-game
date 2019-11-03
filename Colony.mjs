@@ -2,6 +2,7 @@ import buildAttributeTable from './AttributeTable.mjs';
 import clone from 'clone';
 import COLONY_ATTRIBUTES from './ColonyAttributeDefinitions.mjs';
 import COLONY_PROJECTS from './ColonyProjects.mjs';
+import REQUIREMENT_TYPES from './RequirementTypes.mjs';
 import rng from './Rng.mjs';
 
 export default async function() {
@@ -20,6 +21,10 @@ export class Colony {
         this.buildings = [];
     }
     
+    hasBuilt(key) {
+        return this.buildings.includes(key);
+    }
+    
     async step() {
         const effectAccum = this.activeEffects();
         
@@ -35,8 +40,7 @@ export class Colony {
             
             if (this.progress[this.building] >=
                     COLONY_PROJECTS[this.building].cost) {
-                this.buildings.push(this.building);
-                this.building = undefined;
+                this.instaBuild(this.building);
             }
         }
     
@@ -50,7 +54,7 @@ export class Colony {
             name: this.name,
             attributes: await this.attributes.currentValues(effectAccum),
             building: this.building,
-            couldBuild: Object.keys(COLONY_PROJECTS)
+            couldBuild: this.couldBuild()
         };
         
         if (this.building) {
@@ -59,6 +63,23 @@ export class Colony {
                 required: COLONY_PROJECTS[this.building].cost
             };
         }
+        
+        return result;
+    }
+    
+    couldBuild() {
+        const result = []
+        
+        Object.keys(COLONY_PROJECTS).filter(bkey => {
+            if (!this.hasBuilt(bkey)) {
+                const requirements = COLONY_PROJECTS[bkey].requires || [];
+                
+                if (requirements.every(r => REQUIREMENT_TYPES[r.type](
+                        r, this, COLONY_PROJECTS[bkey]))) {
+                    result.push(bkey);
+                }
+            }
+        });
         
         return result;
     }
@@ -78,6 +99,15 @@ export class Colony {
         }
         
         this.building = key;
+    }
+    
+    instaBuild(key) {
+        if (!COLONY_PROJECTS[key]) {
+            throw new Error('Unknown project key.');
+        }
+        
+        this.buildings.push(key);
+        this.building = undefined;
     }
 }
 
