@@ -44,7 +44,10 @@ async function main() {
     }, 2000);
 
     setInterval(() => {
-        c.step();
+        c.step().catch(e => {
+            console.log(e);
+            process.exit(1);
+        });
     }, 1000);
     
     async function doCommand(cmd) {
@@ -52,6 +55,7 @@ async function main() {
         switch (parts[0]) {
             case 'build': {
                 c.setBuild(parts[1]);
+                return `Building ${parts[1]}.`;
                 break;
             }
             default: {

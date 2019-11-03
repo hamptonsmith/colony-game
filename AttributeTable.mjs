@@ -1,6 +1,8 @@
+import _ from 'array-foreach-async';
 import clone from 'clone';
 import ev from './expressions.mjs';
 import types from './AttributeTypes.mjs';
+import EFFECT_TYPES from './EffectTypes.mjs';
 
 export default async function(defs) {
     const groundValues = await buildGroundValues(defs);
@@ -70,14 +72,24 @@ class AttributeTable {
         this.attrDefs = defs;
         this.groundValues = groundValues;
         this.helperFunctions = helperFunctions;
-        this.effects = {};
     }
     
-    async step() {
-        const currentValues = await this.currentValues();
+    async step(activeEffects) {
+        const currentValues = await this.currentValues(activeEffects);
+        
         Object.keys(this.helperFunctions).forEach(key => {
-            currentValues[key] = this.helperFunctions[key];
+            currentValues[key] = { value: this.helperFunctions[key] };
         });
+        
+        function valueGetter(key) {
+            let result;
+            
+            if (currentValues[key]) {
+                result = currentValues[key].value;
+            }
+        
+            return result;
+        }
         
         const newGroundValues = {};
         
@@ -89,7 +101,7 @@ class AttributeTable {
             const attrTypeDef = types[attrDef.type];
             
             const nextValue = await attrTypeDef.step(
-                    currentGroundValue, attrDef, currentValues);
+                    currentGroundValue, attrDef, valueGetter);
             
             newGroundValues[attrName] = nextValue;
         };
@@ -97,17 +109,21 @@ class AttributeTable {
         this.groundValues = newGroundValues;
     }
     
-    addEffect(e) {
-        throw new Error('not yet implemented');
-    }
+    async currentValues(activeEffects) {
+        if (!activeEffects) {
+            throw new Error('Must provide active effects.');
+        }
     
-    async currentValues() {
         const valueResolvers = {};
         const effectTable = {};
         const totalEffects = {};
         
         const attrNames = Object.keys(this.attrDefs);
         attrNames.forEach(attrName => {
+            if (attrName.startsWith('$')) {
+                throw new Error('asdfasdfsafads');
+            }
+        
             if (!attrName.startsWith('$')) {
                 valueResolvers[attrName] = async (symbolLookupFn) => {
                     const attrDef = this.attrDefs[attrName];
@@ -123,6 +139,16 @@ class AttributeTable {
                             symbolLookupFn);
                     
                     effectTable[attrName] = [];
+                    
+                    await activeEffects.forEachAsync(async e => {
+                        if (EFFECT_TYPES[e.type].appliesTo(
+                                e, attrName, accum, symbolLookupFn)) {
+                            effectTable[attrName].push(e);
+                            await EFFECT_TYPES[e.type].accumulate(
+                                    e, attrName, accum, symbolLookupFn);
+                        }
+                    });
+                    
                     totalEffects[attrName] = clone(accum);
                     
                     return await attrTypeDef.extractValue(
@@ -145,7 +171,16 @@ class AttributeTable {
             }
         }
         
-        return symbolTable.cachedValues;
+        const result = {};
+        Object.keys(symbolTable.cachedValues).forEach(k => {
+            result[k] = {
+                value: symbolTable.cachedValues[k],
+                totalEffects: totalEffects[k],
+                activeEffects: effectTable[k]
+            };
+        });
+        
+        return result;
     }
 }
 

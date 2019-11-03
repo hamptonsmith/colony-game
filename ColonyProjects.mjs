@@ -11,7 +11,7 @@ export default {
         cost: 720,
         effects: [
             {
-                type: 'base',
+                type: 'baseIncrease',
                 what: 'carryingCapacity',
                 amount: 'carryingCapacityBonus1'
             }
