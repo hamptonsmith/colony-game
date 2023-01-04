@@ -14,7 +14,7 @@
     "moo": "^0.5.1",
     "nearley": "^2.19.0",
     "seed-random": "^2.2.0",
-    "terminal-kit": "^1.31.4",
+    "terminal-kit": "^3.0.0",
     "ws": "^7.2.0"
   }
 }
